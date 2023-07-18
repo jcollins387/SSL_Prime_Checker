@@ -19,7 +19,7 @@ config = configparser.ConfigParser()
 config.read(os.path.dirname(sys.argv[0]) + '/knownprimes.ini')
 
 def check_prime(server):
-    ossl_out = subprocess.check_output([os.path.dirname(sys.argv[0]) + "/openssl-trace",
+    ossl_out = subprocess.check_output(["./openssl-trace",
                                         "s_client", "-trace",
                                         "-servername", server,
                                         "-cipher", "DHE",
@@ -37,10 +37,51 @@ def check_prime(server):
                 print("\033[91mp is not a prime, that is broken\033[39m")
 
             p12 = gmpy2.div(gmpy2.sub(prime, 1), 2)
+
+            # Rest of the code for p12 analysis
+            # ...
+
             print("-" * 50)
             return
 
     print(f"Failed to obtain prime p for {server}")
+
+def build_openssl_trace():
+    openssl_trace_script = """
+#include <stdio.h>
+#include <unistd.h>
+
+int main(int argc, char **argv)
+{
+    if (execvp("openssl", argv) == -1)
+    {
+        perror("execvp");
+        return 1;
+    }
+
+    return 0;
+}
+"""
+
+    with open("openssl-trace.c", "w") as file:
+        file.write(openssl_trace_script)
+
+    if subprocess.call(["gcc", "-o", "openssl-trace", "openssl-trace.c"]) == 0:
+        print("openssl-trace built successfully.")
+        os.remove("openssl-trace.c")
+    else:
+        print("Failed to build openssl-trace.")
+        sys.exit(1)
+
+def prompt_build_openssl_trace():
+    response = input("The openssl-trace script was not found. Do you want to build it? (y/n): ")
+    if response.lower() == "y":
+        build_openssl_trace()
+    else:
+        sys.exit(1)
+
+if not os.path.isfile("./openssl-trace"):
+    prompt_build_openssl_trace()
 
 if opts.servers:
     for server in opts.servers:
@@ -59,3 +100,4 @@ elif opts.file:
 else:
     parser.print_help()
     sys.exit(1)
+
