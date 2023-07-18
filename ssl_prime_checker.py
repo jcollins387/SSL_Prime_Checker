@@ -36,6 +36,13 @@ def check_prime(server):
 
                 if gmpy2.is_prime(prime):
                     print("\033[92mp is prime\033[39m")
+
+                    for section in config.sections():
+                        known_prime = config.get(section, "prime")
+                        if known_prime == hex(prime):
+                            print(f"p is a commonly used prime: [{section}]")
+                            break
+
                 else:
                     print("\033[91mp is not a prime, that is broken\033[39m")
 
@@ -92,7 +99,9 @@ if not os.path.isfile("./openssl-trace"):
     prompt_build_openssl_trace()
 
 if opts.timeout is None:
-    default_timeout = 10.0
+    # Default timeout calculation based on expected response time + 20%
+    expected_response_time = 3.0  # Adjust this value as per your expectation
+    default_timeout = expected_response_time * 1.2
     opts.timeout = default_timeout
 
 signal.signal(signal.SIGALRM, timeout_handler)
@@ -118,3 +127,4 @@ elif opts.file:
 else:
     parser.print_help()
     sys.exit(1)
+
