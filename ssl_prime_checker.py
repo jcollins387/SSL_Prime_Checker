@@ -7,12 +7,14 @@ import re
 import configparser
 import os
 import sys
+import signal
 
 parser = optparse.OptionParser()
 
 parser.add_option("-s", "--server", dest="servers", action="append", default=[], help="server hostnames or IP addresses")
 parser.add_option("-f", "--file", dest="file", help="file containing a list of hosts")
 parser.add_option("-p", "--port", dest="port", default=443, help="port (default 443/https)")
+parser.add_option("-t", "--timeout", dest="timeout", type="float", default=None, help="timeout in seconds")
 (opts, args) = parser.parse_args()
 
 config = configparser.ConfigParser()
@@ -24,7 +26,7 @@ def check_prime(server):
                                         "-servername", server,
                                         "-cipher", "DHE",
                                         "-connect", f"{server}:{opts.port}"],
-                                       stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                       stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=opts.timeout)
 
     for line in ossl_out.decode("utf-8").splitlines():
         if 'dh_p' in line:
@@ -80,8 +82,21 @@ def prompt_build_openssl_trace():
     else:
         sys.exit(1)
 
+def timeout_handler(signum, frame):
+    print("Timeout occurred.")
+    sys.exit(1)
+
 if not os.path.isfile("./openssl-trace"):
     prompt_build_openssl_trace()
+
+if opts.timeout is None:
+    # Default timeout calculation based on expected response time + 20%
+    expected_response_time = 3.0  # Adjust this value as per your expectation
+    default_timeout = expected_response_time * 1.2
+    opts.timeout = default_timeout
+
+signal.signal(signal.SIGALRM, timeout_handler)
+signal.alarm(int(opts.timeout))
 
 if opts.servers:
     for server in opts.servers:
@@ -100,4 +115,3 @@ elif opts.file:
 else:
     parser.print_help()
     sys.exit(1)
-
