@@ -21,32 +21,35 @@ config = configparser.ConfigParser()
 config.read(os.path.dirname(sys.argv[0]) + '/knownprimes.ini')
 
 def check_prime(server):
-    ossl_out = subprocess.check_output(["./openssl-trace",
-                                        "s_client", "-trace",
-                                        "-servername", server,
-                                        "-cipher", "DHE",
-                                        "-connect", f"{server}:{opts.port}"],
-                                       stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=opts.timeout)
+    try:
+        ossl_out = subprocess.check_output(["./openssl-trace",
+                                            "s_client", "-trace",
+                                            "-servername", server,
+                                            "-cipher", "DHE",
+                                            "-connect", f"{server}:{opts.port}"],
+                                           stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=opts.timeout)
 
-    for line in ossl_out.decode("utf-8").splitlines():
-        if 'dh_p' in line:
-            prime = gmpy2.mpz(re.sub(".*: ", "", line), 16)
-            print(f"Checking prime p for {server}: {hex(prime)}")
+        for line in ossl_out.decode("utf-8").splitlines():
+            if 'dh_p' in line:
+                prime = gmpy2.mpz(re.sub(".*: ", "", line), 16)
+                print(f"Checking prime p for {server}: {hex(prime)}")
 
-            if gmpy2.is_prime(prime):
-                print("\033[92mp is prime\033[39m")
-            else:
-                print("\033[91mp is not a prime, that is broken\033[39m")
+                if gmpy2.is_prime(prime):
+                    print("\033[92mp is prime\033[39m")
+                else:
+                    print("\033[91mp is not a prime, that is broken\033[39m")
 
-            p12 = gmpy2.div(gmpy2.sub(prime, 1), 2)
+                p12 = gmpy2.div(gmpy2.sub(prime, 1), 2)
 
-            # Rest of the code for p12 analysis
-            # ...
+                # Rest of the code for p12 analysis
+                # ...
 
-            print("-" * 50)
-            return
+                print("-" * 50)
+                return
 
-    print(f"Failed to obtain prime p for {server}")
+        print(f"Failed to obtain prime p for {server}")
+    except subprocess.TimeoutExpired:
+        print(f"Timeout occurred for {server}. Skipping to the next host.")
 
 def build_openssl_trace():
     openssl_trace_script = """
@@ -84,23 +87,21 @@ def prompt_build_openssl_trace():
 
 def timeout_handler(signum, frame):
     print("Timeout occurred.")
-    sys.exit(1)
 
 if not os.path.isfile("./openssl-trace"):
     prompt_build_openssl_trace()
 
 if opts.timeout is None:
-    # Default timeout calculation based on expected response time + 20%
-    expected_response_time = 3.0  # Adjust this value as per your expectation
-    default_timeout = expected_response_time * 1.2
+    default_timeout = 10.0
     opts.timeout = default_timeout
 
 signal.signal(signal.SIGALRM, timeout_handler)
-signal.alarm(int(opts.timeout))
 
 if opts.servers:
     for server in opts.servers:
+        signal.alarm(int(opts.timeout))
         check_prime(server)
+        signal.alarm(0)  # Reset the alarm after each host
 elif opts.file:
     try:
         with open(opts.file, "r") as file:
@@ -111,7 +112,9 @@ elif opts.file:
         sys.exit(1)
 
     for hostname in hostnames:
+        signal.alarm(int(opts.timeout))
         check_prime(hostname)
+        signal.alarm(0)  # Reset the alarm after each host
 else:
     parser.print_help()
     sys.exit(1)
