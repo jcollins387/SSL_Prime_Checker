@@ -14,7 +14,7 @@ parser = optparse.OptionParser()
 parser.add_option("-s", "--server", dest="servers", action="append", default=[], help="server hostnames or IP addresses")
 parser.add_option("-f", "--file", dest="file", help="file containing a list of hosts")
 parser.add_option("-p", "--port", dest="port", default=443, help="port (default 443/https)")
-parser.add_option("-t", "--timeout", dest="timeout", type="float", default=None, help="timeout in seconds")
+parser.add_option("-t", "--timeout", dest="timeout", type="float", default=10.0, help="timeout in seconds")
 (opts, args) = parser.parse_args()
 
 config = configparser.ConfigParser()
@@ -32,24 +32,26 @@ def check_prime(server):
         for line in ossl_out.decode("utf-8").splitlines():
             if 'dh_p' in line:
                 prime = gmpy2.mpz(re.sub(".*: ", "", line), 16)
-                print(f"Checking prime p for {server}: {hex(prime)}")
+                print(f"Host: {server}")
+                print(f"p: {hex(prime)}")
 
                 if gmpy2.is_prime(prime):
-                    print("\033[92mp is prime\033[39m")
-
-                    for section in config.sections():
-                        known_prime = config.get(section, "prime")
-                        if known_prime == hex(prime):
-                            print(f"p is a commonly used prime: [{section}]")
-                            break
-
+                    prime_str = "yes"
                 else:
-                    print("\033[91mp is not a prime, that is broken\033[39m")
+                    prime_str = "no"
 
-                p12 = gmpy2.div(gmpy2.sub(prime, 1), 2)
+                common_str = "no"
+                common_name = ""
+                for section in config.sections():
+                    known_prime = config.get(section, "prime")
+                    if known_prime == hex(prime):
+                        common_str = "yes"
+                        common_name = section
+                        break
 
-                # Rest of the code for p12 analysis
-                # ...
+                print(f"prime: {prime_str}")
+                print(f"common: {common_str}")
+                print(f"common name: {common_name}")
 
                 print("-" * 50)
                 return
@@ -57,6 +59,7 @@ def check_prime(server):
         print(f"Failed to obtain prime p for {server}")
     except subprocess.TimeoutExpired:
         print(f"Timeout occurred for {server}. Skipping to the next host.")
+        print("-" * 50)
 
 def build_openssl_trace():
     openssl_trace_script = """
@@ -94,15 +97,10 @@ def prompt_build_openssl_trace():
 
 def timeout_handler(signum, frame):
     print("Timeout occurred.")
+    print("-" * 50)
 
 if not os.path.isfile("./openssl-trace"):
     prompt_build_openssl_trace()
-
-if opts.timeout is None:
-    # Default timeout calculation based on expected response time + 20%
-    expected_response_time = 3.0  # Adjust this value as per your expectation
-    default_timeout = expected_response_time * 1.2
-    opts.timeout = default_timeout
 
 signal.signal(signal.SIGALRM, timeout_handler)
 
@@ -127,4 +125,3 @@ elif opts.file:
 else:
     parser.print_help()
     sys.exit(1)
-
