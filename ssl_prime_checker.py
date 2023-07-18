@@ -15,10 +15,13 @@ parser.add_option("-s", "--server", dest="servers", action="append", default=[],
 parser.add_option("-f", "--file", dest="file", help="file containing a list of hosts")
 parser.add_option("-p", "--port", dest="port", default=443, help="port (default 443/https)")
 parser.add_option("-t", "--timeout", dest="timeout", type="float", default=10.0, help="timeout in seconds")
+parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="display verbose output")
 (opts, args) = parser.parse_args()
 
 config = configparser.ConfigParser()
 config.read(os.path.dirname(sys.argv[0]) + '/knownprimes.ini')
+
+vulnerable_hosts = []
 
 def check_prime(server):
     try:
@@ -32,8 +35,9 @@ def check_prime(server):
         for line in ossl_out.decode("utf-8").splitlines():
             if 'dh_p' in line:
                 prime = gmpy2.mpz(re.sub(".*: ", "", line), 16)
-                print(f"Host: {server}")
-                print(f"p: {hex(prime)}")
+                if opts.verbose:
+                    print(f"Host: {server}")
+                    print(f"p: {hex(prime)}")
 
                 if gmpy2.is_prime(prime):
                     prime_str = "yes"
@@ -49,17 +53,23 @@ def check_prime(server):
                         common_name = section
                         break
 
-                print(f"prime: {prime_str}")
-                print(f"common: {common_str}")
-                print(f"common name: {common_name}")
+                if opts.verbose:
+                    print(f"prime: {prime_str}")
+                    print(f"common: {common_str}")
+                    if common_str == "yes":
+                        print(f"common name: {common_name}")
 
-                print("-" * 50)
+                if prime_str == "yes" and common_str == "yes":
+                    vulnerable_hosts.append(f"{server} - {common_name}")
+
                 return
 
-        print(f"Failed to obtain prime p for {server}")
+        if not 'dh_p' in line:
+            print(f"Error: Failed to obtain prime p for {server}")
     except subprocess.TimeoutExpired:
-        print(f"Timeout occurred for {server}. Skipping to the next host.")
-        print("-" * 50)
+        print(f"Error: Timeout occurred for {server}. Skipping to the next host.")
+    except subprocess.CalledProcessError:
+        print(f"Error: Failed to establish a connection with {server}. Skipping to the next host.")
 
 def build_openssl_trace():
     openssl_trace_script = """
@@ -82,7 +92,8 @@ int main(int argc, char **argv)
         file.write(openssl_trace_script)
 
     if subprocess.call(["gcc", "-o", "openssl-trace", "openssl-trace.c"]) == 0:
-        print("openssl-trace built successfully.")
+        if opts.verbose:
+            print("openssl-trace built successfully.")
         os.remove("openssl-trace.c")
     else:
         print("Failed to build openssl-trace.")
@@ -96,8 +107,7 @@ def prompt_build_openssl_trace():
         sys.exit(1)
 
 def timeout_handler(signum, frame):
-    print("Timeout occurred.")
-    print("-" * 50)
+    signal.alarm(0) # Reset the alarm
 
 if not os.path.isfile("./openssl-trace"):
     prompt_build_openssl_trace()
@@ -125,3 +135,8 @@ elif opts.file:
 else:
     parser.print_help()
     sys.exit(1)
+
+if vulnerable_hosts:
+    print("Hosts using Common Primes:")
+    for host in vulnerable_hosts:
+        print(host)
