@@ -14,6 +14,8 @@ SSL Prime Checker is a command-line tool that checks the prime number used in SS
 
 - Python 3
 - gmpy2 library (install using `pip install gmpy2`)
+- OpenSSL compiled with the enable-ssl-trace option
+  - This will be compiled during the first run if not present in the working folder and named `openssl-trace`
 
 ## Usage
 
@@ -25,7 +27,6 @@ SSL Prime Checker is a command-line tool that checks the prime number used in SS
 - `-s`, `--server`: Specify server hostnames or IP addresses to check the prime number.
 - `-f`, `--file`: Specify a file containing a list of hosts (one per line) to check the prime number for multiple servers.
 - `-p`, `--port`: Specify the port number to connect to (default is 443).
-- `--known-primes`: Specify a custom known primes file (default is `knownprimes.ini`).
 
 ## Known Primes
 
@@ -41,6 +42,6 @@ The list of known prime numbers used for comparison and analysis is sourced from
 
 `python ssl_prime_checker.py -f hosts.txt`
 
-- Specify a custom port and known primes file:
+- Specify a custom port:
 
-`python ssl_prime_checker.py -s example.com -p8443 --known-primes custom_primes.ini`
+`python ssl_prime_checker.py -s example.com -p8443`
