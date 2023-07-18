@@ -28,6 +28,7 @@ SSL Prime Checker is a command-line tool that checks the prime number used in SS
 - `-f`, `--file`: Specify a file containing a list of hosts (one per line) to check the prime number for multiple servers.
 - `-p`, `--port`: Specify the port number to connect to (default is 443).
 - `-t`, `--timeout`: Specify the timeout in seconds
+- `-v`, `--verbose`: Display verbose output
 
 ## Known Primes
 
